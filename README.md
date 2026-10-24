@@ -14,10 +14,11 @@ Click the item for a live countdown, today's peak timeline in your local time, a
 
 ## Install
 
-Requires macOS 13 or later. There are no dependencies, no API keys, and no network calls.
+Requires macOS 13 or later (Apple silicon or Intel). There are no dependencies, no API keys, and no network calls.
 
 ```bash
-cd ~/Projects/deepseek-peak-menubar
+git clone https://github.com/johnhumphrys/deepseek-peak-menubar.git
+cd deepseek-peak-menubar
 make install
 ```
 
@@ -39,7 +40,7 @@ DeepSeek defines peak hours on the [API pricing page](https://api-docs.deepseek.
 
 > Peak hours are 01:00–04:00 and 06:00–10:00 UTC, Monday through Friday, excluding Chinese public holidays. All other hours are off-peak, including weekends and Chinese public holidays in full. Off-peak rates are half of the peak rates.
 
-For a Melbourne clock (the timezone this was built in) that is:
+In Melbourne, for example, that works out to:
 
 | | UTC | Melbourne (AEST/AEDT) |
 | --- | --- | --- |
