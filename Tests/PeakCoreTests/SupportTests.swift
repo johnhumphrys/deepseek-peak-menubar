@@ -175,8 +175,17 @@ final class FormattingTests: XCTestCase {
     }
 
     func testZoneAbbreviationFollowsDaylightSaving() {
-        XCTAssertEqual(LocalDateTime.zoneAbbreviation(melbourne, at: instant("2026-10-23T01:00:00Z")), "AEDT")
-        XCTAssertEqual(LocalDateTime.zoneAbbreviation(melbourne, at: instant("2026-04-23T01:00:00Z")), "AEST")
+        // Foundation localises abbreviations ("AEDT" for en_AU, "GMT+11" for
+        // en_US), so assert that the label matches the zone and shifts with DST
+        // rather than hard-coding one locale's spelling.
+        let summer = instant("2026-10-23T01:00:00Z")
+        let winter = instant("2026-04-23T01:00:00Z")
+        XCTAssertEqual(LocalDateTime.zoneAbbreviation(melbourne, at: summer), melbourne.abbreviation(for: summer))
+        XCTAssertEqual(LocalDateTime.zoneAbbreviation(melbourne, at: winter), melbourne.abbreviation(for: winter))
+        XCTAssertNotEqual(
+            LocalDateTime.zoneAbbreviation(melbourne, at: summer),
+            LocalDateTime.zoneAbbreviation(melbourne, at: winter)
+        )
     }
 
     func testWindowRangeFormatting() {
@@ -185,9 +194,11 @@ final class FormattingTests: XCTestCase {
             end: instant("2026-10-23T04:00:00Z")
         )
         XCTAssertEqual(LocalDateTime.range(window, timeZone: melbourne), "12:00 pm – 3:00 pm")
+        let zone = LocalDateTime.zoneAbbreviation(melbourne, at: window.start)
+        XCTAssertFalse(zone.isEmpty)
         XCTAssertEqual(
             LocalDateTime.dayAndTime(window.start, timeZone: melbourne),
-            "Fri 23 Oct, 12:00 pm AEDT"
+            "Fri 23 Oct, 12:00 pm \(zone)"
         )
     }
 }
