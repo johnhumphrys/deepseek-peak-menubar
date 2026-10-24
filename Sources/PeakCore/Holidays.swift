@@ -53,23 +53,37 @@ public struct HolidayCalendar: Sendable {
     /// Parses a holiday file. Each non-empty, non-comment line is
     /// `YYYY-MM-DD Name`; the name is optional and defaults to "Public holiday".
     public static func parse(_ text: String) -> [Holiday] {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+
         var result: [Holiday] = []
         for rawLine in text.split(whereSeparator: \.isNewline) {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
             guard !line.isEmpty, !line.hasPrefix("#") else { continue }
 
-            let parts = line.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
+            // Accept any whitespace (spaces, tabs) between date and name.
+            let parts = line.split(whereSeparator: \.isWhitespace)
             guard let datePart = parts.first else { continue }
             let datePieces = datePart.split(separator: "-")
             guard datePieces.count == 3,
                   let year = Int(datePieces[0]),
                   let month = Int(datePieces[1]),
                   let day = Int(datePieces[2]),
-                  (1...12).contains(month),
-                  (1...31).contains(day)
+                  (1900...2200).contains(year)
             else { continue }
 
-            let name = parts.count > 1 ? String(parts[1]) : "Public holiday"
+            // Reject impossible dates such as 2027-02-30.
+            var components = DateComponents()
+            components.year = year
+            components.month = month
+            components.day = day
+            guard let date = calendar.date(from: components) else { continue }
+            let roundTrip = calendar.dateComponents([.year, .month, .day], from: date)
+            guard roundTrip.year == year, roundTrip.month == month, roundTrip.day == day else {
+                continue
+            }
+
+            let name = parts.count > 1 ? parts.dropFirst().joined(separator: " ") : "Public holiday"
             result.append(Holiday(year: year, month: month, day: day, name: name))
         }
         return result

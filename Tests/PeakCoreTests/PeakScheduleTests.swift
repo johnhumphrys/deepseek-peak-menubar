@@ -242,4 +242,98 @@ final class PeakScheduleTests: XCTestCase {
         XCTAssertEqual(LocalDateTime.dayMonth(date, timeZone: melbourne), "Fri 23 Oct")
         XCTAssertEqual(LocalDateTime.zoneAbbreviation(melbourne, at: date), "AEDT")
     }
+
+    // MARK: - Edge cases
+
+    func testNextPeakDuringPeakIsTheFollowingWindow() {
+        let snapshot = plainSchedule.snapshot(at: instant("2026-10-23T02:00:00Z"))
+        XCTAssertEqual(snapshot.phase, .peak)
+        XCTAssertEqual(snapshot.nextPeak?.start, instant("2026-10-23T06:00:00Z"))
+    }
+
+    func testZeroLeadTimeNeverReportsApproaching() {
+        let schedule = PeakSchedule(leadTime: 0, holidays: HolidayCalendar(holidays: []))
+        let snapshot = schedule.snapshot(at: instant("2026-10-26T00:59:00Z"))
+        XCTAssertEqual(snapshot.phase, .offPeak)
+        XCTAssertEqual(snapshot.timeToChange, 60, accuracy: 0.5)
+    }
+
+    func testLongerLeadTimeReachesAcrossMidnight() {
+        let schedule = PeakSchedule(leadTime: 120 * 60, holidays: HolidayCalendar(holidays: []))
+        // Sunday 23:15 UTC, Monday peak at 01:00 — 1h45m away.
+        XCTAssertEqual(schedule.snapshot(at: instant("2026-10-25T23:15:00Z")).phase, .approaching)
+        // The default 30m lead would still be green here.
+        XCTAssertEqual(plainSchedule.snapshot(at: instant("2026-10-25T23:15:00Z")).phase, .offPeak)
+    }
+
+    func testHolidayMakesAWeekdayAnOffPeakDay() {
+        let schedule = PeakSchedule(leadTime: 1800, holidays: .builtIn)
+        let day = instant("2026-10-01T00:00:00Z")
+        XCTAssertTrue(schedule.isPeakDay(utcDayStart: instant("2026-10-09T00:00:00Z"))) // Friday after the holiday
+        XCTAssertFalse(schedule.isPeakDay(utcDayStart: day))
+        XCTAssertEqual(schedule.holidayName(utcDayStart: day), "National Day")
+        XCTAssertNil(schedule.holidayName(utcDayStart: instant("2026-10-08T00:00:00Z")))
+    }
+
+    func testWeekendAndHolidayNotesCombine() {
+        // Saturday 3 October 2026 is also National Day.
+        let schedule = PeakSchedule(leadTime: 1800, holidays: .builtIn)
+        let snapshot = schedule.snapshot(at: instant("2026-10-03T02:00:00Z"), timeZone: melbourne)
+        XCTAssertEqual(snapshot.phase, .offPeak)
+        XCTAssertTrue(snapshot.offPeakNotes.contains("Weekend"))
+        XCTAssertTrue(snapshot.offPeakNotes.contains { $0.contains("National Day") })
+    }
+
+    func testNoNotesOnADayThatHasPeaks() {
+        let snapshot = PeakSchedule(leadTime: 1800, holidays: .builtIn)
+            .snapshot(at: instant("2026-10-23T02:00:00Z"), timeZone: melbourne)
+        XCTAssertTrue(snapshot.offPeakNotes.isEmpty)
+    }
+
+    func testSpringFestivalCreatesALongOffPeakStretch() {
+        let schedule = PeakSchedule(leadTime: 1800, holidays: .builtIn)
+        // Monday 16 February 2026 falls inside the Spring Festival holiday.
+        let snapshot = schedule.snapshot(at: instant("2026-02-16T02:00:00Z"), timeZone: melbourne)
+        XCTAssertEqual(snapshot.phase, .offPeak)
+        XCTAssertEqual(snapshot.nextPeak?.start, instant("2026-02-24T01:00:00Z"))
+        XCTAssertGreaterThan(snapshot.timeToChange, 7 * 24 * 3600)
+    }
+
+    func testUpcomingPeaksAreFutureOnlyAndSorted() {
+        let now = instant("2026-10-23T07:00:00Z") // inside the second Friday peak
+        let peaks = plainSchedule.upcomingPeaks(after: now, count: 3)
+        XCTAssertEqual(peaks.count, 3)
+        XCTAssertTrue(peaks.allSatisfy { $0.start > now })
+        XCTAssertEqual(peaks.map(\.start), peaks.map(\.start).sorted())
+        XCTAssertEqual(peaks.first?.start, instant("2026-10-26T01:00:00Z")) // Monday
+    }
+
+    func testWindowsRespectTheRequestedDayRange() {
+        let windows = plainSchedule.windows(
+            around: instant("2026-10-23T12:00:00Z"), daysBack: 0, daysForward: 0
+        )
+        XCTAssertEqual(windows.count, 2) // both Friday windows, even though they are in the past
+    }
+
+    func testTimelineAcrossMidnightInNegativeOffset() {
+        // A fixed UTC-8 zone: the UTC peak windows land in the previous
+        // evening and straddle local midnight.
+        let pacific = TimeZone(secondsFromGMT: -8 * 3600)!
+        let now = instant("2026-10-26T12:00:00Z") // Monday 04:00 local
+
+        let timeline = plainSchedule.timeline(forLocalDayContaining: now, timeZone: pacific)
+        XCTAssertEqual(timeline.dayEnd.timeIntervalSince(timeline.dayStart), 24 * 3600, accuracy: 0.5)
+        XCTAssertEqual(timeline.segments.count, 5)
+
+        let peaks = timeline.segments.filter(\.isPeak)
+        XCTAssertEqual(peaks.count, 3)
+        XCTAssertEqual(LocalDateTime.time(peaks[0].start, timeZone: pacific), "12:00 am")
+        XCTAssertEqual(LocalDateTime.time(peaks[0].end, timeZone: pacific), "2:00 am")
+        XCTAssertEqual(LocalDateTime.time(peaks[1].start, timeZone: pacific), "5:00 pm")
+        XCTAssertEqual(LocalDateTime.time(peaks[1].end, timeZone: pacific), "8:00 pm")
+        XCTAssertEqual(LocalDateTime.time(peaks[2].start, timeZone: pacific), "10:00 pm")
+        XCTAssertEqual(LocalDateTime.time(peaks[2].end, timeZone: pacific), "12:00 am")
+
+        XCTAssertEqual(timeline.nowFraction, 4.0 / 24.0, accuracy: 0.001)
+    }
 }
