@@ -16,6 +16,7 @@ final class AppModel: ObservableObject {
 
     private let preferences: Preferences
     private var schedule: PeakSchedule
+    private var tickCount = 0
     /// Non-zero when `DEEPSEEK_PEAK_FAKE_NOW` is set, for screenshots/tests.
     private let clockOffset: TimeInterval
 
@@ -45,6 +46,14 @@ final class AppModel: ObservableObject {
         snapshot = schedule.snapshot(at: wallClock, timeZone: timeZone)
         timeline = schedule.timeline(forLocalDayContaining: wallClock, timeZone: timeZone)
 
+        // Querying the login-item status hits XPC; do it occasionally, not 1/s.
+        tickCount += 1
+        if tickCount % 15 == 1 {
+            syncLaunchAtLoginStatus()
+        }
+    }
+
+    func syncLaunchAtLoginStatus() {
         let enabled = SMAppService.mainApp.status == .enabled
         if enabled != launchAtLogin { launchAtLogin = enabled }
     }
@@ -81,7 +90,7 @@ final class AppModel: ObservableObject {
         } catch {
             lastError = error.localizedDescription
         }
-        launchAtLogin = SMAppService.mainApp.status == .enabled
+        syncLaunchAtLoginStatus()
     }
 
     // MARK: - Display helpers

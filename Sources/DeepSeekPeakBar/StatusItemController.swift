@@ -134,6 +134,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     func showPopover() {
         guard let button = statusItem.button else { return }
         model.refresh()
+        model.syncLaunchAtLoginStatus()
         updateStatusItem()
 
         if hostingController == nil {
