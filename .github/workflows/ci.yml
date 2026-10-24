@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build & test
+    runs-on: macos-15
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: swift --version
+
+      - name: Build (release)
+        run: swift build -c release
+
+      - name: Test
+        run: swift test
+
+      - name: Assemble app bundle
+        run: make app
+
+      - name: Verify bundle
+        run: |
+          set -euo pipefail
+          test -x "dist/DeepSeek Peak.app/Contents/MacOS/DeepSeekPeak"
+          plutil -lint "dist/DeepSeek Peak.app/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :LSUIElement" "dist/DeepSeek Peak.app/Contents/Info.plist" | grep -q true

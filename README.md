@@ -1,5 +1,7 @@
 # DeepSeek Peak
 
+[![CI](https://github.com/johnhumphrys/deepseek-peak-menubar/actions/workflows/ci.yml/badge.svg)](https://github.com/johnhumphrys/deepseek-peak-menubar/actions/workflows/ci.yml)
+
 A tiny macOS menu bar app that shows whether DeepSeek's API is currently in **peak** or **off-peak** pricing — and exactly how long until that changes.
 
 ![Menu bar states, light and dark](docs/menubar-states.png)
@@ -129,17 +131,19 @@ Sources/DeepSeekPeakBar/   menu bar app
   PopoverView.swift           SwiftUI popover
   AppModel.swift              clock + settings, republished to the views
   main.swift                  entry point, --dump / --help
-Tests/PeakCoreTests/       24 unit tests
+Tests/PeakCoreTests/       51 unit tests
 ```
 
 The engine walks the UTC calendar and emits the peak windows for the surrounding three weeks, then asks one question: is now inside a window, and how far away is the next boundary? Because the windows are generated in UTC, the same code produces the same answer in any time zone, and the "approaching" state is simply `nextStart - now <= leadTime`.
 
 The menu bar label is rebuilt only when its text changes (once a minute), while the popover countdown ticks once a second.
 
+CI (`.github/workflows/ci.yml`) runs the release build, the full test suite, and the `.app` assembly on every push to `main` and on pull requests.
+
 ## Development
 
 ```bash
-swift test          # 24 tests: windows, boundaries, weekends, holidays, DST, formatting
+swift test          # 51 tests: windows, boundaries, weekends, holidays, DST, formatting, parser
 swift build         # debug binary at .build/debug/DeepSeekPeakBar
 make app            # release .app at dist/DeepSeek Peak.app
 ```
@@ -167,3 +171,7 @@ The images in `docs/` are produced this way: they are `cacheDisplay` renders of 
 - "Peak" here means **API pricing**, not the web chat's load.
 - No telemetry, no network access, no background agents — just a timer and some date arithmetic.
 - Not affiliated with DeepSeek.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
